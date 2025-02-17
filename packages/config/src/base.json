@@ -17,5 +17,6 @@
 
   "ride_presale_address": "0x0a11BeaE0B414fC8F559069B5A48C64281c7Bb76",
   "ride_pepe_usd_address": "0xBfB245280D60e30Cc033bC79bD1317614ec3016d",
+  "ride_eth_usd_feed_address": "0x57d2d46Fc7ff2A7142d479F2f59e1E3F95447077",
   "ride_start_block": 25015900
 }
