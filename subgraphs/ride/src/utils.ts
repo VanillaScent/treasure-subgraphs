@@ -1,10 +1,14 @@
-import { Address, BigInt, ethereum, log } from "@graphprotocol/graph-ts";
+import { Address, BigInt, Bytes, ethereum, log } from "@graphprotocol/graph-ts";
 
+import { ZERO_BD } from "../../magicswap/src/const";
 import { ERC1155 } from "../generated/PepeUSD/ERC1155";
 import {
   Account,
+  DayData,
   Global,
+  HourData,
   MemePresale,
+  MinuteData,
   TokenHolding,
   Transaction,
 } from "../generated/schema";
@@ -35,6 +39,7 @@ export function getOrCreateGlobal(): Global {
     global.totalBuyTransactions = BIGINT_ZERO;
     global.totalSellTransactions = BIGINT_ZERO;
     global.totalBaseTokenRaised = BIGINT_ZERO;
+    global.ethPrice = BIGINT_ZERO;
 
     global.createdAt = BIGINT_ZERO;
     global.updatedAt = BIGINT_ZERO;
@@ -73,6 +78,7 @@ export function createTransaction(
   presaleId: string,
   accountId: Address
 ): void {
+  const global = getOrCreateGlobal();
   let presale = MemePresale.load(presaleId);
   if (!presale) {
     log.error("Presale not found: {}", [presaleId]);
@@ -96,6 +102,7 @@ export function createTransaction(
   tx.to = to;
   tx.amount = amount;
   tx.baseTokenAmount = baseTokenAmount;
+  tx.price = global.ethPrice;
 
   // Calculate price in WETH
   if (amount.gt(BIGINT_ZERO)) {
@@ -131,7 +138,6 @@ export function createTransaction(
   }
 
   const prevBalance = token.balance;
-  const global = getOrCreateGlobal();
 
   // Update account statistics and arrays
   if (type == TX_TYPE_BUY) {
@@ -188,6 +194,11 @@ export function createTransaction(
   token.save();
   tx.save();
   account.save();
+
+  // Update time interval stats
+  updateMinuteData(presale, tx, event.block.timestamp);
+  updateHourData(presale, tx, event.block.timestamp);
+  updateDayData(presale, tx, event.block.timestamp);
 }
 
 export function updateMetrics(presaleId: string, event: ethereum.Event): void {
@@ -229,6 +240,15 @@ export function getUniqueSellers(presaleId: string): BigInt {
   return presale.uniqueSellerCount;
 }
 
+export const timestampToHour = (timestamp: BigInt): BigInt =>
+  BigInt.fromI32((timestamp.toI32() / 3600) * 3600);
+
+export const timestampToMinute = (timestamp: BigInt): BigInt =>
+  BigInt.fromI32(timestamp.toI32() / 3600);
+
+export const timestampToDate = (timestamp: BigInt): BigInt =>
+  BigInt.fromI32((timestamp.toI32() / 86400) * 86400);
+
 export function updateTransactionArrays(
   account: Account,
   presaleId: string,
@@ -248,6 +268,124 @@ export function updateTransactionArrays(
     }
   }
 }
+
+export const updateHourData = (
+  token: MemePresale,
+  tx: Transaction,
+  timestamp: BigInt
+): HourData => {
+  const global = getOrCreateGlobal();
+  const date = timestampToHour(timestamp);
+  const id = Bytes.fromI32(date.toI32());
+  let dayData = HourData.load(id);
+  if (!dayData) {
+    dayData = new HourData(id);
+    dayData.timestamp = date;
+    dayData.volumeUSD = BIGINT_ZERO;
+    dayData.volumeBaseToken = BIGINT_ZERO;
+    dayData.volumeToken = BIGINT_ZERO;
+    dayData.txCount = BIGINT_ZERO;
+    dayData.price = BIGINT_ZERO;
+    dayData.updatedAt = timestamp;
+    dayData.createdAt = timestamp;
+  }
+  dayData.volumeBaseToken = dayData.volumeBaseToken.plus(tx.baseTokenAmount);
+  dayData.volumeToken = dayData.volumeToken.plus(tx.amount);
+  dayData.price = global.ethPrice;
+
+  //append volume in USD
+  dayData.volumeUSD = dayData.volumeUSD.plus(
+    dayData.volumeBaseToken.times(global.ethPrice)
+  );
+
+  //how to calculate tx count?
+  dayData.txCount = BIGINT_ZERO;
+  dayData.token = token.id;
+  dayData.updatedAt = timestamp;
+  dayData.save();
+
+  return dayData;
+};
+
+export const updateDayData = (
+  token: MemePresale,
+  tx: Transaction,
+  timestamp: BigInt
+): DayData => {
+  const global = getOrCreateGlobal();
+  const date = timestampToDate(timestamp);
+  const id = Bytes.fromI32(date.toI32());
+  let hourData = DayData.load(id);
+  if (!hourData) {
+    hourData = new DayData(id);
+    hourData.timestamp = date;
+    hourData.volumeUSD = BIGINT_ZERO;
+    hourData.volumeBaseToken = BIGINT_ZERO;
+    hourData.volumeToken = BIGINT_ZERO;
+    hourData.txCount = BIGINT_ZERO;
+    hourData.price = BIGINT_ZERO;
+    hourData.updatedAt = timestamp;
+    hourData.createdAt = timestamp;
+  }
+  hourData.volumeBaseToken = hourData.volumeBaseToken.plus(tx.baseTokenAmount);
+  hourData.volumeToken = hourData.volumeToken.plus(tx.amount);
+  hourData.price = global.ethPrice;
+
+  //append volume in USD
+  hourData.volumeUSD = hourData.volumeUSD.plus(
+    hourData.volumeBaseToken.times(global.ethPrice)
+  );
+
+  //how to calculate tx count?
+  hourData.txCount = BIGINT_ZERO;
+  hourData.token = token.id;
+  hourData.updatedAt = timestamp;
+  hourData.save();
+
+  return hourData;
+};
+
+export const updateMinuteData = (
+  token: MemePresale,
+  tx: Transaction,
+  timestamp: BigInt
+): MinuteData => {
+  const global = getOrCreateGlobal();
+  const date = timestampToMinute(timestamp);
+  const id = Bytes.fromI32(date.toI32());
+  let minuteData = MinuteData.load(id);
+  if (!minuteData) {
+    minuteData = new MinuteData(id);
+    minuteData.timestamp = date;
+
+    minuteData.volumeUSD = BIGINT_ZERO;
+    minuteData.volumeBaseToken = BIGINT_ZERO;
+    minuteData.volumeToken = BIGINT_ZERO;
+    minuteData.txCount = BIGINT_ZERO;
+    minuteData.price = BIGINT_ZERO;
+    minuteData.updatedAt = timestamp;
+    minuteData.createdAt = timestamp;
+  }
+
+  minuteData.volumeBaseToken = minuteData.volumeBaseToken.plus(
+    tx.baseTokenAmount
+  );
+  minuteData.volumeToken = minuteData.volumeToken.plus(tx.amount);
+  minuteData.price = global.ethPrice;
+
+  //append volume in USD
+  minuteData.volumeUSD = minuteData.volumeUSD.plus(
+    minuteData.volumeBaseToken.times(global.ethPrice)
+  );
+
+  //how to calculate tx count?
+  minuteData.txCount = BIGINT_ZERO;
+  minuteData.token = token.id;
+  minuteData.updatedAt = timestamp;
+  minuteData.save();
+
+  return minuteData;
+};
 
 export class COLLECTION_DATA {
   type: string;

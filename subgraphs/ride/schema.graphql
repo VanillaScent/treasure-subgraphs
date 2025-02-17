@@ -7,6 +7,8 @@ type Global @entity {
   totalBuyTransactions: BigInt!
   totalBaseTokenRaised: BigInt!
 
+  ethPrice: BigInt!
+
   createdAt: BigInt!
   updatedAt: BigInt!
 }
@@ -53,6 +55,7 @@ type Transaction @entity {
   type: String! # BUY, SELL, GRADUATE
   from: Bytes!
   to: Bytes!
+  price: BigInt!
   amount: BigInt!
   baseTokenAmount: BigInt!
   memePresale: MemePresale!
@@ -60,6 +63,54 @@ type Transaction @entity {
   blockNumber: BigInt!
   timestamp: BigInt!
   logIndex: BigInt!
+}
+
+type DayData @entity {
+  id: Bytes!
+
+  token: MemePresale!
+
+  price: BigInt!
+  volumeUSD: BigInt!
+  volumeBaseToken: BigInt!
+  volumeToken: BigInt!
+
+  timestamp: BigInt!
+  txCount: BigInt!
+  updatedAt: BigInt!
+  createdAt: BigInt!
+}
+
+type HourData @entity {
+  id: Bytes!
+
+  token: MemePresale!
+
+  price: BigInt!
+  volumeUSD: BigInt!
+  volumeBaseToken: BigInt!
+  volumeToken: BigInt!
+
+  timestamp: BigInt!
+  txCount: BigInt!
+  updatedAt: BigInt!
+  createdAt: BigInt!
+}
+
+type MinuteData @entity {
+  id: Bytes!
+
+  token: MemePresale!
+
+  price: BigInt!
+  volumeUSD: BigInt!
+  volumeBaseToken: BigInt!
+  volumeToken: BigInt!
+
+  timestamp: BigInt!
+  txCount: BigInt!
+  updatedAt: BigInt!
+  createdAt: BigInt!
 }
 
 type Account @entity {
